@@ -12,7 +12,7 @@ pub struct PartNumber {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Entity {
     Symbol{position: Coord},
-    PartNumber(PartNumber)
+    Part(PartNumber)
 }
 
 struct Entities(Vec<Entity>);
@@ -42,7 +42,7 @@ impl FromStr for Entities {
                            let number_str : String = line[x..].chars().take_while(|c| c.is_ascii_digit()).collect();
                            dbg!(&number_str);
                            let number = number_str.parse::<u32>().map_err(|_| ParseError::NotInt)?;
-                           let ent = Entity::PartNumber { number: number, start_pos: (x,y), end_pos: (x+number_str.len() - 1, y) };
+                           let ent = Entity::Part (PartNumber { number, start_pos: (x,y), end_pos: (x+number_str.len() - 1, y) });
 
                            entities.push(ent);
                            in_number = true;
@@ -57,8 +57,23 @@ impl FromStr for Entities {
 
 use std::collections::HashSet;
 
-pub fn is_adjacent_to_any(partnumber: &PartNumber, symbols: HashSet<&Coord>) -> bool {
-    todo!()
+pub fn is_adjacent_to_one(&PartNumber{start_pos, end_pos, ..}: &PartNumber, &(sym_x, sym_y): &Coord) -> bool {
+    let (sx,sy) = start_pos;
+    let (ex,_ey) = end_pos;
+
+    let dy = sym_y.abs_diff(sy);
+    if dy < 2 {
+        let dx1 = sym_x.abs_diff(sx);
+        let dx2 = sym_x.abs_diff(ex);
+
+        dx1 < 2 || dx2 < 2 || (ex <= sym_x || sx >= sym_x)
+
+    } else {
+        false
+    }
+}
+pub fn is_adjacent_to_any(&PartNumber{start_pos, end_pos, ..}: &PartNumber, symbols: HashSet<&Coord>) -> bool {
+    todo!();
 }
 
 pub fn part_one(input: &str) -> Option<u32> {
@@ -72,6 +87,8 @@ pub fn part_one(input: &str) -> Option<u32> {
             None
         }
     }).flatten().collect();
+
+    None
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
@@ -99,11 +116,11 @@ mod tests {
         let input = advent_of_code::template::read_file("examples", DAY);
         let Entities(result) = input.parse::<Entities>().expect("should parse");
         let expected = vec!(
-            Entity::PartNumber { number: 467, start_pos: (0,0), end_pos: (2,0) },
-            Entity::PartNumber { number: 114, start_pos: (5,0), end_pos: (7,0) },
+            Entity::Part (PartNumber { number: 467, start_pos: (0,0), end_pos: (2,0) }),
+            Entity::Part (PartNumber { number: 114, start_pos: (5,0), end_pos: (7,0) }),
             Entity::Symbol { position: (3,1) },
-            Entity::PartNumber { number: 35, start_pos: (2,2), end_pos: (3,2) },
-            Entity::PartNumber { number: 633, start_pos: (6,2), end_pos: (8,2) },
+            Entity::Part (PartNumber { number: 35, start_pos: (2,2), end_pos: (3,2) }),
+            Entity::Part (PartNumber { number: 633, start_pos: (6,2), end_pos: (8,2) }),
             Entity::Symbol { position: (6,3) });
 
         dbg!(&result);
