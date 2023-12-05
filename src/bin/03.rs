@@ -33,14 +33,13 @@ impl FromStr for Entities {
         for y in 0..lines.len() {
             let line = lines[y];
             for x in 0..line.len() {
-                let c = dbg!(line.chars().nth(x).unwrap());
+                let c = line.chars().nth(x).unwrap();
                 match (c, c.is_ascii_digit()) {
                    ('.', _) => {in_number = false;},
                    (_, false) => {in_number = false; entities.push(Entity::Symbol { position: (x,y) })}
                    (_, true) => {
                        if in_number == false {
                            let number_str : String = line[x..].chars().take_while(|c| c.is_ascii_digit()).collect();
-                           dbg!(&number_str);
                            let number = number_str.parse::<u32>().map_err(|_| ParseError::NotInt)?;
                            let ent = Entity::Part (PartNumber { number, start_pos: (x,y), end_pos: (x+number_str.len() - 1, y) });
 
@@ -66,14 +65,15 @@ pub fn is_adjacent_to_one(&PartNumber{start_pos, end_pos, ..}: &PartNumber, &(sy
         let dx1 = sym_x.abs_diff(sx);
         let dx2 = sym_x.abs_diff(ex);
 
-        dx1 < 2 || dx2 < 2 || (ex <= sym_x || sx >= sym_x)
+        dx1 < 2 || dx2 < 2 || (ex <= sym_x && sx >= sym_x)
 
     } else {
         false
     }
 }
-pub fn is_adjacent_to_any(&PartNumber{start_pos, end_pos, ..}: &PartNumber, symbols: HashSet<&Coord>) -> bool {
-    todo!();
+
+pub fn is_adjacent_to_any(pn: &PartNumber, symbols: &HashSet<&Coord>) -> bool {
+    symbols.iter().any(|&s| is_adjacent_to_one(&pn, s))
 }
 
 pub fn part_one(input: &str) -> Option<u32> {
@@ -88,7 +88,24 @@ pub fn part_one(input: &str) -> Option<u32> {
         }
     }).flatten().collect();
 
-    None
+    // dbg!(entities.iter().map(|e| {
+    //     if let Entity::Part(partnumber) = e {
+    //         Some(partnumber.number)
+    //     } else {
+    //         None
+    //     }
+    // }).flatten().collect::<Vec<_>>());
+
+    Some(entities.iter().map(|e| {
+        if let Entity::Part(partnumber) = e {
+            Some(partnumber)
+        } else {
+            None
+        }
+    })
+        .flatten().filter(|&pn| is_adjacent_to_any(pn, &symbols))
+        .map(|e| e.number)
+        .sum())
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
@@ -127,5 +144,47 @@ mod tests {
         assert_eq!(result.len(), 16);
 
         assert_eq!(result[..6], expected);
+    }
+
+    #[test]
+    fn test_is_adjacent_to_one() {
+        let part_number = PartNumber { number: 123, start_pos: (5,6), end_pos: (7,6)};
+
+        assert!(is_adjacent_to_one(&part_number, &(4,5)));
+        assert!(is_adjacent_to_one(&part_number, &(4,6)));
+        assert!(is_adjacent_to_one(&part_number, &(4,7)));
+
+        assert!(is_adjacent_to_one(&part_number, &(6,5)));
+        assert!(is_adjacent_to_one(&part_number, &(6,7)));
+
+        assert!(is_adjacent_to_one(&part_number, &(5,5)));
+        assert!(is_adjacent_to_one(&part_number, &(5,7)));
+
+        assert!(is_adjacent_to_one(&part_number, &(7,5)));
+        assert!(is_adjacent_to_one(&part_number, &(7,7)));
+
+        assert!(is_adjacent_to_one(&part_number, &(8,7)));
+        assert!(is_adjacent_to_one(&part_number, &(8,6)));
+        assert!(is_adjacent_to_one(&part_number, &(8,5)));
+
+        assert!(!is_adjacent_to_one(&part_number, &(9,7)));
+        assert!(!is_adjacent_to_one(&part_number, &(9,6)));
+        assert!(!is_adjacent_to_one(&part_number, &(9,5)));
+
+        assert!(!is_adjacent_to_one(&part_number, &(3,7)));
+        assert!(!is_adjacent_to_one(&part_number, &(3,6)));
+        assert!(!is_adjacent_to_one(&part_number, &(3,5)));
+    }
+
+    #[test]
+    fn test_is_adjacent_to_one_2() {
+        let symbol : Coord = ( 5, 5,);
+
+        let not_adjacent =  PartNumber { number: 58, start_pos: ( 7, 5,), end_pos: ( 8, 5,), };
+
+        let adjacent = PartNumber { number: 592, start_pos: ( 2, 6,), end_pos: ( 4, 6,), };
+
+        assert!(is_adjacent_to_one(&adjacent, &symbol));
+        assert!(!is_adjacent_to_one(&not_adjacent, &symbol));
     }
 }
