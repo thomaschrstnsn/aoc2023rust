@@ -6,7 +6,7 @@ type Coord = (usize, usize);
 pub struct PartNumber {
     number: u32,
     start_pos: Coord,
-    end_pos: Coord
+    end_pos: Coord,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -29,9 +29,9 @@ impl FromStr for Entities {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut entities : Vec<Entity> = Vec::new();
         let lines : Vec<&str> = s.split('\n').collect();
-        let mut in_number = false;
         for y in 0..lines.len() {
             let line = lines[y];
+            let mut in_number = false;
             for x in 0..line.len() {
                 let c = line.chars().nth(x).unwrap();
                 match (c, c.is_ascii_digit()) {
@@ -72,14 +72,14 @@ pub fn is_adjacent_to_one(&PartNumber{start_pos, end_pos, ..}: &PartNumber, &(sy
     }
 }
 
-pub fn is_adjacent_to_any(pn: &PartNumber, symbols: &HashSet<&Coord>) -> bool {
+pub fn is_adjacent_to_any(pn: &PartNumber, symbols: &Vec<&Coord>) -> bool {
     symbols.iter().any(|&s| is_adjacent_to_one(&pn, s))
 }
 
 pub fn part_one(input: &str) -> Option<u32> {
     let Entities(entities) = input.parse::<Entities>().ok()?;
 
-    let symbols : HashSet<&Coord> = entities.iter().map(|e| {
+    let symbols : Vec<&Coord> = entities.iter().map(|e| {
         if let Entity::Symbol { position } = e {
             Some(position)
         }
@@ -88,22 +88,15 @@ pub fn part_one(input: &str) -> Option<u32> {
         }
     }).flatten().collect();
 
-    // dbg!(entities.iter().map(|e| {
-    //     if let Entity::Part(partnumber) = e {
-    //         Some(partnumber.number)
-    //     } else {
-    //         None
-    //     }
-    // }).flatten().collect::<Vec<_>>());
-
-    Some(entities.iter().map(|e| {
-        if let Entity::Part(partnumber) = e {
-            Some(partnumber)
-        } else {
-            None
-        }
-    })
-        .flatten().filter(|&pn| is_adjacent_to_any(pn, &symbols))
+    Some(entities.iter().map(
+            |e| {
+                if let Entity::Part(partnumber) = e {
+                    Some(partnumber)
+                } else {
+                    None
+                }
+            })
+            .flatten().filter(|&pn| is_adjacent_to_any(pn, &symbols))
         .map(|e| e.number)
         .sum())
 }
@@ -140,7 +133,6 @@ mod tests {
             Entity::Part (PartNumber { number: 633, start_pos: (6,2), end_pos: (8,2) }),
             Entity::Symbol { position: (6,3) });
 
-        dbg!(&result);
         assert_eq!(result.len(), 16);
 
         assert_eq!(result[..6], expected);
