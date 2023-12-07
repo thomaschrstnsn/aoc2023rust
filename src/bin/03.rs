@@ -11,7 +11,7 @@ pub struct PartNumber {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Entity {
-    Symbol{position: Coord},
+    Symbol{position: Coord, symbol: char},
     Part(PartNumber)
 }
 
@@ -36,7 +36,7 @@ impl FromStr for Entities {
                 let c = line.chars().nth(x).unwrap();
                 match (c, c.is_ascii_digit()) {
                    ('.', _) => {in_number = false;},
-                   (_, false) => {in_number = false; entities.push(Entity::Symbol { position: (x,y) })}
+                   (c, false) => {in_number = false; entities.push(Entity::Symbol { position: (x,y), symbol: c })}
                    (_, true) => {
                        if in_number == false {
                            let number_str : String = line[x..].chars().take_while(|c| c.is_ascii_digit()).collect();
@@ -53,8 +53,6 @@ impl FromStr for Entities {
         Ok(Entities(entities))
     }
 }
-
-use std::collections::HashSet;
 
 pub fn is_adjacent_to_one(&PartNumber{start_pos, end_pos, ..}: &PartNumber, &(sym_x, sym_y): &Coord) -> bool {
     let (sx,sy) = start_pos;
@@ -80,7 +78,7 @@ pub fn part_one(input: &str) -> Option<u32> {
     let Entities(entities) = input.parse::<Entities>().ok()?;
 
     let symbols : Vec<&Coord> = entities.iter().map(|e| {
-        if let Entity::Symbol { position } = e {
+        if let Entity::Symbol { position, symbol: _} = e {
             Some(position)
         }
         else {
@@ -102,6 +100,18 @@ pub fn part_one(input: &str) -> Option<u32> {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
+    let Entities(entities) = input.parse::<Entities>().ok()?;
+
+    let gears : Vec<&Coord> = entities.iter().map(|e| {
+        if let Entity::Symbol { position, symbol: '*'} = e {
+            Some(position)
+        }
+        else {
+            None
+        }
+    }).flatten().collect();
+
+    dbg!(gears);
     None
 }
 
@@ -128,10 +138,10 @@ mod tests {
         let expected = vec!(
             Entity::Part (PartNumber { number: 467, start_pos: (0,0), end_pos: (2,0) }),
             Entity::Part (PartNumber { number: 114, start_pos: (5,0), end_pos: (7,0) }),
-            Entity::Symbol { position: (3,1) },
+            Entity::Symbol { position: (3,1), symbol: '*' },
             Entity::Part (PartNumber { number: 35, start_pos: (2,2), end_pos: (3,2) }),
             Entity::Part (PartNumber { number: 633, start_pos: (6,2), end_pos: (8,2) }),
-            Entity::Symbol { position: (6,3) });
+            Entity::Symbol { position: (6,3), symbol: '#' });
 
         assert_eq!(result.len(), 16);
 
