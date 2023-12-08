@@ -5,7 +5,8 @@ advent_of_code::solution!(1);
 pub fn part_one(input: &str) -> Option<u32> {
     let mut sum = 0;
     for line in input.split('\n') {
-        let digits = line.chars()
+        let digits = line
+            .chars()
             .filter(|c| c.is_ascii_digit())
             .collect::<Vec<char>>();
 
