@@ -67,9 +67,9 @@ pub fn part_one(input: &str) -> Option<u32> {
         cards
             .into_iter()
             .map(|card| {
-                let intersection: Vec<&u8> = card.winners.intersection(&card.drawn).collect();
+                let count = card.winners.intersection(&card.drawn).count();
 
-                let count = u32::try_from(intersection.len()).unwrap();
+                let count = u32::try_from(count).unwrap();
 
                 if count > 0 {
                     1 << (count - 1)
