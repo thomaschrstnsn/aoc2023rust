@@ -1,4 +1,7 @@
-use std::{collections::HashSet, num::ParseIntError};
+use std::{
+    collections::{HashMap, HashSet},
+    num::ParseIntError,
+};
 
 advent_of_code::solution!(4);
 
@@ -67,10 +70,7 @@ pub fn part_one(input: &str) -> Option<u32> {
         cards
             .into_iter()
             .map(|card| {
-                let count = card.winners.intersection(&card.drawn).count();
-
-                let count = u32::try_from(count).unwrap();
-
+                let count = card.matches();
                 if count > 0 {
                     1 << (count - 1)
                 } else {
@@ -81,8 +81,46 @@ pub fn part_one(input: &str) -> Option<u32> {
     )
 }
 
+impl Card {
+    fn matches(&self) -> u32 {
+        let count = self.winners.intersection(&self.drawn).count();
+
+        u32::try_from(count).unwrap()
+    }
+}
+
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    let cards = parse_cards(input).expect("parseeee");
+
+    let min = cards
+        .iter()
+        .map(|c| c.number)
+        .min()
+        .expect("min must exist");
+    let max = cards
+        .iter()
+        .map(|c| c.number)
+        .max()
+        .expect("max must exist");
+
+    let card_map: HashMap<u16, &Card> = cards.iter().map(|c| (c.number, c)).collect();
+    let mut card_count: HashMap<u16, u32> = cards.iter().map(|c| (c.number, 1)).collect();
+
+    for i in min..max {
+        let card = card_map[&i];
+        let mult = card_count[&i];
+
+        let matches = card.matches();
+        for add_index in 0..(matches as u16) {
+            if let Some(count_to_update) = card_count.get_mut(&(i + add_index + 1)) {
+                *count_to_update += mult;
+            } else {
+                dbg!("could not find", i);
+            }
+        }
+    }
+
+    Some(card_count.values().sum())
 }
 
 #[cfg(test)]
@@ -97,8 +135,10 @@ mod tests {
 
     #[test]
     fn test_part_two() {
-        let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        let result = part_two(&advent_of_code::template::read_file_part(
+            "examples", DAY, 2,
+        ));
+        assert_eq!(result, Some(30));
     }
 
     #[test]
