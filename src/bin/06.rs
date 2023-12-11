@@ -7,7 +7,7 @@ struct Races {
 }
 
 fn parse(input: &str) -> Option<Races> {
-    let lines : Vec<&str> = input.lines().collect();
+    let lines: Vec<&str> = input.lines().collect();
 
     assert_eq!(lines.len(), 2);
 
@@ -32,7 +32,20 @@ fn u32s(s: &str) -> Result<Vec<u32>, std::num::ParseIntError> {
 }
 
 pub fn part_one(input: &str) -> Option<u32> {
-    None
+    let races = parse(input).expect("parses");
+    let mut result = 1;
+    for (time, distance) in std::iter::zip(races.time, races.distance) {
+        let hold_times: Vec<u32> = (1..time)
+            .filter(|hold_time| (time - hold_time) * hold_time > distance)
+            .collect();
+
+        let min = hold_times.iter().min().expect("to have minimum");
+        let max = hold_times.iter().max().expect("to have maximum");
+        let delta = max - min + 1;
+        result *= delta;
+    }
+
+    Some(result)
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
@@ -46,18 +59,19 @@ mod tests {
     #[test]
     fn test_part_one() {
         let result = part_one(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(288));
     }
 
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(71503));
     }
 
     #[test]
     fn parse_example() {
-        let result = parse(&advent_of_code::template::read_file("examples", DAY)).expect("should parse");
+        let result =
+            parse(&advent_of_code::template::read_file("examples", DAY)).expect("should parse");
 
         let expected = Races {
             time: vec![7, 15, 30],
