@@ -49,7 +49,36 @@ pub fn part_one(input: &str) -> Option<u32> {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    let races = parse(input).expect("parses");
+
+    let distance_str = races
+        .distance
+        .iter()
+        .map(|d| format!("{}", d))
+        .collect::<Vec<_>>()
+        .join("");
+    let time_str = races
+        .time
+        .iter()
+        .map(|d| format!("{}", d))
+        .collect::<Vec<_>>()
+        .join("");
+
+    let distance = distance_str.parse::<u64>().expect("can parse distance");
+    let time = time_str.parse::<u64>().expect("can parse time");
+
+    let min = (1..time)
+        .filter(|hold_time| (time - hold_time) * hold_time > distance)
+        .next()
+        .expect("to have minimum");
+    let max = (1..time)
+        .rev()
+        .filter(|hold_time| (time - hold_time) * hold_time > distance)
+        .next()
+        .expect("to have maximum");
+    let delta = max - min + 1;
+
+    Some(delta as u32)
 }
 
 #[cfg(test)]
@@ -64,7 +93,9 @@ mod tests {
 
     #[test]
     fn test_part_two() {
-        let result = part_two(&advent_of_code::template::read_file("examples", DAY));
+        let result = part_two(&advent_of_code::template::read_file_part(
+            "examples", DAY, 2,
+        ));
         assert_eq!(result, Some(71503));
     }
 
