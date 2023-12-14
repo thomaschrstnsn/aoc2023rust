@@ -1,5 +1,10 @@
 use itertools::Itertools;
-use std::{cmp::Ordering, collections::HashMap, num::ParseIntError};
+use std::{
+    cmp::{self, Ord, Ordering},
+    collections::HashMap,
+    hash::Hash,
+    num::ParseIntError,
+};
 
 advent_of_code::solution!(7);
 
@@ -22,7 +27,7 @@ enum Card {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct Hand(Vec<Card>);
+struct Hand<T: Hash>(Vec<T>);
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum HandRanking {
@@ -35,9 +40,9 @@ enum HandRanking {
     HighCard = 4,
 }
 
-fn rank(Hand(hand): &Hand) -> HandRanking {
+fn rank<T: Eq + Hash>(Hand(hand): &Hand<T>) -> HandRanking {
     use HandRanking::*;
-    let counts: HashMap<&Card, usize> = hand.into_iter().counts();
+    let counts: HashMap<&T, usize> = hand.into_iter().counts();
 
     let mut freq: Vec<usize> = counts.into_values().collect();
     freq.sort();
@@ -54,13 +59,13 @@ fn rank(Hand(hand): &Hand) -> HandRanking {
     }
 }
 
-impl PartialOrd for Hand {
+impl<T: PartialEq + Ord + Hash> PartialOrd for Hand<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for Hand {
+impl<T: cmp::Eq + Ord + Hash> Ord for Hand<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         let self_rank = rank(self);
         let other_rank = rank(other);
@@ -82,7 +87,7 @@ impl Ord for Hand {
 type Bid = u32;
 
 #[derive(Debug, PartialEq)]
-struct Input(Hand, Bid);
+struct Input(Hand<Card>, Bid);
 
 fn parse_card(c: char) -> Option<Card> {
     match c {
@@ -171,7 +176,7 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(5905));
     }
 
     #[test]
