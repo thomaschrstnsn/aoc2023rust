@@ -23,7 +23,6 @@ enum Card {
     Four = 4,
     Three = 3,
     Two = 2,
-    One = 1,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -104,7 +103,6 @@ fn parse_card(c: char) -> Option<Card> {
         '4' => Some(Card::Four),
         '3' => Some(Card::Three),
         '2' => Some(Card::Two),
-        '1' => Some(Card::One),
         _ => None,
     }
 }
@@ -191,20 +189,20 @@ mod tests {
     #[test]
     fn test_rank() {
         assert_eq!(rank(&Hand(vec!(Ace, Ace, Ace, Ace, Ace))), FiveOfAKind);
-        assert_eq!(rank(&Hand(vec!(One, Ace, Ace, Ace, Ace))), FourOfAKind);
-        assert_eq!(rank(&Hand(vec!(One, Ace, Ace, One, Ace))), FullHouse);
-        assert_eq!(rank(&Hand(vec!(One, Ace, Ace, Three, Ace))), ThreeOfAKind);
-        assert_eq!(rank(&Hand(vec!(One, Ace, One, Three, Ace))), TwoPair);
-        assert_eq!(rank(&Hand(vec!(One, Ace, Two, Three, Ace))), OnePair);
-        assert_eq!(rank(&Hand(vec!(One, Five, Two, Three, Ace))), HighCard);
+        assert_eq!(rank(&Hand(vec!(Two, Ace, Ace, Ace, Ace))), FourOfAKind);
+        assert_eq!(rank(&Hand(vec!(Two, Ace, Ace, Two, Ace))), FullHouse);
+        assert_eq!(rank(&Hand(vec!(Two, Ace, Ace, Three, Ace))), ThreeOfAKind);
+        assert_eq!(rank(&Hand(vec!(Two, Ace, Two, Three, Ace))), TwoPair);
+        assert_eq!(rank(&Hand(vec!(Six, Ace, Two, Three, Ace))), OnePair);
+        assert_eq!(rank(&Hand(vec!(Six, Five, Two, Three, Ace))), HighCard);
     }
 
     #[test]
     fn test_cmp_hand() {
-        assert!(Hand(vec![Ace, Ace, Ace, Ace, One]) > Hand(vec![One, Ace, Ace, Ace, Ace]));
-        assert!(Hand(vec![One, Ace, Ace, Ace, One]) < Hand(vec![Ace, Ace, Ace, Ace, One]));
-        assert!(Hand(vec![Ace, Ace, Ace, Ace, One]) > Hand(vec![One, Ace, Two, Ace, Ace]));
-        assert!(Hand(vec![Ace, Ten, King, Queen, One]) == Hand(vec![Ace, Ten, King, Queen, One]));
-        assert!(Hand(vec![One, Ace, Ace, Ace, Ace]) < Hand(vec![Three, One, One, One, One]));
+        assert!(Hand(vec![Ace, Ace, Ace, Ace, Two]) > Hand(vec![Two, Ace, Ace, Ace, Ace]));
+        assert!(Hand(vec![Two, Ace, Ace, Ace, Two]) < Hand(vec![Ace, Ace, Ace, Ace, Two]));
+        assert!(Hand(vec![Ace, Ace, Ace, Ace, Two]) > Hand(vec![Two, Ace, Two, Ace, Ace]));
+        assert!(Hand(vec![Ace, Ten, King, Queen, Two]) == Hand(vec![Ace, Ten, King, Queen, Two]));
+        assert!(Hand(vec![Two, Ace, Ace, Ace, Ace]) < Hand(vec![Three, Two, Two, Two, Two]));
     }
 }
