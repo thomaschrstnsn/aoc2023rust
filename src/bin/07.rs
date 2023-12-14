@@ -8,7 +8,7 @@ use std::{
 
 advent_of_code::solution!(7);
 
-#[derive(Debug, Eq, PartialEq, PartialOrd, Hash, Ord)]
+#[derive(Debug, Eq, PartialEq, PartialOrd, Hash, Ord, Clone)]
 enum Card {
     Ace = 14,
     King = 13,
@@ -25,8 +25,42 @@ enum Card {
     Two = 2,
 }
 
+#[derive(Debug, Eq, PartialEq, PartialOrd, Hash, Ord, Clone)]
+enum JokerCard {
+    Ace = 14,
+    King = 13,
+    Queen = 12,
+    Ten = 10,
+    Nine = 9,
+    Eight = 8,
+    Seven = 7,
+    Six = 6,
+    Five = 5,
+    Four = 4,
+    Three = 3,
+    Two = 2,
+    JokerJack = 1,
+}
+
+#[derive(Hash, Debug)]
+struct JokerIsWild(JokerCard);
+
+impl PartialEq for JokerIsWild {
+    fn eq(&self, other: &Self) -> bool {
+        let JokerIsWild(self_card) = self;
+        let JokerIsWild(other_card) = other;
+        match (self_card, other_card) {
+            (JokerCard::JokerJack, _) => true,
+            (_, JokerCard::JokerJack) => true,
+            (s, o) => s == o,
+        }
+    }
+}
+
+impl Eq for JokerIsWild {}
+
 #[derive(Debug, PartialEq, Eq)]
-struct Hand<T: Hash>(Vec<T>);
+struct Hand<T>(Vec<T>);
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum HandRanking {
@@ -39,9 +73,18 @@ enum HandRanking {
     HighCard = 4,
 }
 
-fn rank<T: Eq + Hash>(Hand(hand): &Hand<T>) -> HandRanking {
+fn regular_eqt(c: &Card) -> Box<Card> {
+    Box::new(c.clone())
+}
+
+fn joker_eqt(c: &JokerCard) -> Box<JokerIsWild> {
+    Box::new(JokerIsWild(c.clone()))
+}
+
+fn rank<T, EqT: Eq + Hash + std::fmt::Debug>(Hand(hand): &Hand<T>, eq_comparer: fn(&T) -> Box<EqT>) -> HandRanking {
     use HandRanking::*;
-    let counts: HashMap<&T, usize> = hand.into_iter().counts();
+    let counts: HashMap<_, usize> = hand.into_iter().map(eq_comparer).counts();
+    dbg!(&counts);
 
     let mut freq: Vec<usize> = counts.into_values().collect();
     freq.sort();
@@ -58,28 +101,33 @@ fn rank<T: Eq + Hash>(Hand(hand): &Hand<T>) -> HandRanking {
     }
 }
 
-impl<T: PartialEq + Ord + Hash> PartialOrd for Hand<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
+fn regular_tie_breaker(a: &Card, b: &Card) -> Ordering {
+    a.cmp(&b)
 }
 
-impl<T: cmp::Eq + Ord + Hash> Ord for Hand<T> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        let self_rank = rank(self);
-        let other_rank = rank(other);
-        match self_rank.cmp(&other_rank) {
-            Ordering::Equal => {
-                let Hand(self_cards) = self;
-                let Hand(other_cards) = other;
-                let first_diff = std::iter::zip(self_cards, other_cards)
-                    .map(|(a, b)| a.cmp(&b))
-                    .skip_while(|&o| o == Ordering::Equal)
-                    .next();
-                first_diff.unwrap_or(Ordering::Equal)
-            }
-            less_or_greater => less_or_greater,
+fn joker_tie_breaker(a: &JokerCard, b: &JokerCard) -> Ordering {
+    a.cmp(&b)
+}
+
+fn order_hands<T, EqT: Eq + Hash + std::fmt::Debug>(
+    this: &Hand<T>,
+    other: &Hand<T>,
+    tie_breaker: fn(&T, &T) -> Ordering,
+    card_eqt: fn(&T) -> Box<EqT>,
+) -> Ordering {
+    let self_rank = rank(this, card_eqt);
+    let other_rank = rank(other, card_eqt);
+    match self_rank.cmp(&other_rank) {
+        Ordering::Equal => {
+            let Hand(self_cards) = this;
+            let Hand(other_cards) = other;
+            let first_diff = std::iter::zip(self_cards, other_cards)
+                .map(|(a, b)| tie_breaker(a, b))
+                .skip_while(|&o| o == Ordering::Equal)
+                .next();
+            first_diff.unwrap_or(Ordering::Equal)
         }
+        less_or_greater => less_or_greater,
     }
 }
 
@@ -87,6 +135,34 @@ type Bid = u32;
 
 #[derive(Debug, PartialEq)]
 struct Input(Hand<Card>, Bid);
+
+#[derive(Debug, PartialEq)]
+struct JokerInput(Hand<JokerCard>, Bid);
+
+fn convert_to_joker_card(c: &Card) -> JokerCard {
+    match c {
+        Card::Ace => JokerCard::Ace,
+        Card::King => JokerCard::King,
+        Card::Queen => JokerCard::Queen,
+        Card::Jack => JokerCard::JokerJack,
+        Card::Ten => JokerCard::Ten,
+        Card::Nine => JokerCard::Nine,
+        Card::Eight => JokerCard::Eight,
+        Card::Seven => JokerCard::Seven,
+        Card::Six => JokerCard::Six,
+        Card::Five => JokerCard::Five,
+        Card::Four => JokerCard::Four,
+        Card::Three => JokerCard::Three,
+        Card::Two => JokerCard::Two,
+    }
+}
+
+fn convert_to_joker(input: &Input) -> JokerInput {
+    let Input(Hand(cards), bid) = input;
+
+    let joker_cards : Vec<_> = cards.into_iter().map(convert_to_joker_card).collect();
+    JokerInput(Hand(joker_cards), bid.clone())
+}
 
 fn parse_card(c: char) -> Option<Card> {
     match c {
@@ -144,7 +220,9 @@ impl std::str::FromStr for Input {
 pub fn part_one(input: &str) -> Option<u32> {
     let mut inputs = parse(input).expect("parsable input");
 
-    inputs.sort_by(|Input(a_hand, _), Input(b_hand, _)| a_hand.cmp(&b_hand));
+    inputs.sort_by(|Input(a_hand, _), Input(b_hand, _)| {
+        order_hands(&a_hand, &b_hand, regular_tie_breaker, regular_eqt)
+    });
 
     Some(
         inputs
@@ -156,13 +234,25 @@ pub fn part_one(input: &str) -> Option<u32> {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    let normal_inputs = parse(input).expect("parsable input");
+    let mut inputs : Vec<_> = normal_inputs.iter().map(convert_to_joker).collect();
+
+    inputs.sort_by(|JokerInput(a_hand, _), JokerInput(b_hand, _)| {
+        order_hands::<JokerCard, JokerIsWild>(&a_hand, &b_hand, joker_tie_breaker, joker_eqt)
+    });
+
+    Some(
+        inputs
+            .into_iter()
+            .enumerate()
+            .map(|(index, JokerInput(_, bid))| (index as u32 + 1) * bid)
+            .sum(),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use Card::*;
     use HandRanking::*;
 
     #[test]
@@ -179,6 +269,7 @@ mod tests {
 
     #[test]
     fn test_parse() {
+        use Card::*;
         let result =
             parse(&advent_of_code::template::read_file("examples", DAY)).expect("should parse");
 
@@ -187,22 +278,118 @@ mod tests {
     }
 
     #[test]
+    fn test_joker_rank() {
+        use JokerCard::*;
+        assert_eq!(
+            rank(&Hand(vec!(JokerJack, Ace, Ace, Ace, Ace)), joker_eqt),
+            FiveOfAKind
+        );
+        assert_eq!(
+            rank(&Hand(vec!(Two, Ace, JokerJack, Ace, Ace)), joker_eqt),
+            FourOfAKind
+        );
+        assert_eq!(
+            rank(&Hand(vec!(Two, Ace, JokerJack, Two, Ace)), joker_eqt),
+            FullHouse
+        );
+        assert_eq!(
+            rank(&Hand(vec!(Two, JokerJack, Ace, Three, Ace)), joker_eqt),
+            ThreeOfAKind
+        );
+        assert_eq!(
+            rank(&Hand(vec!(Two, Ace, Two, Three, Ace)), joker_eqt),
+            TwoPair
+        );
+        assert_eq!(
+            rank(&Hand(vec!(Six, JokerJack, Two, Three, Ace)), joker_eqt),
+            OnePair
+        );
+        assert_eq!(
+            rank(&Hand(vec!(Six, Five, Two, Three, Ace)), joker_eqt),
+            HighCard
+        );
+    }
+
+    #[test]
     fn test_rank() {
-        assert_eq!(rank(&Hand(vec!(Ace, Ace, Ace, Ace, Ace))), FiveOfAKind);
-        assert_eq!(rank(&Hand(vec!(Two, Ace, Ace, Ace, Ace))), FourOfAKind);
-        assert_eq!(rank(&Hand(vec!(Two, Ace, Ace, Two, Ace))), FullHouse);
-        assert_eq!(rank(&Hand(vec!(Two, Ace, Ace, Three, Ace))), ThreeOfAKind);
-        assert_eq!(rank(&Hand(vec!(Two, Ace, Two, Three, Ace))), TwoPair);
-        assert_eq!(rank(&Hand(vec!(Six, Ace, Two, Three, Ace))), OnePair);
-        assert_eq!(rank(&Hand(vec!(Six, Five, Two, Three, Ace))), HighCard);
+        use Card::*;
+        assert_eq!(
+            rank(&Hand(vec!(Ace, Ace, Ace, Ace, Ace)), regular_eqt),
+            FiveOfAKind
+        );
+        assert_eq!(
+            rank(&Hand(vec!(Two, Ace, Ace, Ace, Ace)), regular_eqt),
+            FourOfAKind
+        );
+        assert_eq!(
+            rank(&Hand(vec!(Two, Ace, Ace, Two, Ace)), regular_eqt),
+            FullHouse
+        );
+        assert_eq!(
+            rank(&Hand(vec!(Two, Ace, Ace, Three, Ace)), regular_eqt),
+            ThreeOfAKind
+        );
+        assert_eq!(
+            rank(&Hand(vec!(Two, Ace, Two, Three, Ace)), regular_eqt),
+            TwoPair
+        );
+        assert_eq!(
+            rank(&Hand(vec!(Six, Ace, Two, Three, Ace)), regular_eqt),
+            OnePair
+        );
+        assert_eq!(
+            rank(&Hand(vec!(Six, Five, Two, Three, Ace)), regular_eqt),
+            HighCard
+        );
     }
 
     #[test]
     fn test_cmp_hand() {
-        assert!(Hand(vec![Ace, Ace, Ace, Ace, Two]) > Hand(vec![Two, Ace, Ace, Ace, Ace]));
-        assert!(Hand(vec![Two, Ace, Ace, Ace, Two]) < Hand(vec![Ace, Ace, Ace, Ace, Two]));
-        assert!(Hand(vec![Ace, Ace, Ace, Ace, Two]) > Hand(vec![Two, Ace, Two, Ace, Ace]));
-        assert!(Hand(vec![Ace, Ten, King, Queen, Two]) == Hand(vec![Ace, Ten, King, Queen, Two]));
-        assert!(Hand(vec![Two, Ace, Ace, Ace, Ace]) < Hand(vec![Three, Two, Two, Two, Two]));
+        use Card::*;
+        assert_eq!(
+            order_hands(
+                &Hand(vec![Ace, Ace, Ace, Ace, Two]),
+                &Hand(vec![Two, Ace, Ace, Ace, Ace]),
+                regular_tie_breaker,
+                regular_eqt
+            ),
+            Ordering::Greater
+        );
+        assert_eq!(
+            order_hands(
+                &Hand(vec![Two, Ace, Ace, Ace, Two]),
+                &Hand(vec![Ace, Ace, Ace, Ace, Two]),
+                regular_tie_breaker,
+                regular_eqt
+            ),
+            Ordering::Less
+        );
+        assert_eq!(
+            order_hands(
+                &Hand(vec![Ace, Ace, Ace, Ace, Two]),
+                &Hand(vec![Two, Ace, Two, Ace, Ace]),
+                regular_tie_breaker,
+                regular_eqt
+            ),
+            Ordering::Greater
+        );
+        assert_eq!(
+            order_hands(
+                &Hand(vec![Ace, Ten, King, Queen, Two]),
+                &Hand(vec![Ace, Ten, King, Queen, Two]),
+                regular_tie_breaker,
+                regular_eqt
+            ),
+            Ordering::Equal
+        );
+        assert_eq!(
+            order_hands(
+                &Hand(vec![Two, Ace, Ace, Ace, Ace]),
+                &Hand(vec![Three, Two, Two, Two, Two]),
+                regular_tie_breaker,
+                regular_eqt
+            ),
+            Ordering::Less
+        );
     }
 }
