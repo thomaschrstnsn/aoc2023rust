@@ -68,13 +68,11 @@ pub fn part_two(input: &str) -> Option<u32> {
     let time = time_str.parse::<u64>().expect("can parse time");
 
     let min = (1..time)
-        .filter(|hold_time| (time - hold_time) * hold_time > distance)
-        .next()
+        .find(|hold_time| (time - hold_time) * hold_time > distance)
         .expect("to have minimum");
     let max = (1..time)
         .rev()
-        .filter(|hold_time| (time - hold_time) * hold_time > distance)
-        .next()
+        .find(|hold_time| (time - hold_time) * hold_time > distance)
         .expect("to have maximum");
     let delta = max - min + 1;
 
