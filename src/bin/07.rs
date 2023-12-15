@@ -1,14 +1,14 @@
 use itertools::Itertools;
 use std::{
-    cmp::{self, Ord, Ordering},
-    collections::{HashMap, HashSet},
+    cmp::{Ord, Ordering},
     hash::Hash,
     num::ParseIntError,
 };
+use std::collections::{HashMap};
 
 advent_of_code::solution!(7);
 
-#[derive(Debug, Eq, PartialEq, PartialOrd, Hash, Ord, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, PartialOrd, Hash, Ord)]
 enum Card {
     Ace = 14,
     King = 13,
@@ -25,7 +25,7 @@ enum Card {
     Two = 2,
 }
 
-#[derive(Debug, Eq, PartialEq, PartialOrd, Hash, Ord, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, PartialOrd, Hash, Ord)]
 enum JokerCard {
     Ace = 14,
     King = 13,
@@ -42,23 +42,6 @@ enum JokerCard {
     JokerJack = 1,
 }
 
-#[derive(Hash, Debug, Copy, Clone)]
-struct JokerIsWild(JokerCard);
-
-impl PartialEq for JokerIsWild {
-    fn eq(&self, other: &Self) -> bool {
-        let JokerIsWild(self_card) = self;
-        let JokerIsWild(other_card) = other;
-        match (self_card, other_card) {
-            (JokerCard::JokerJack, _) => true,
-            (_, JokerCard::JokerJack) => true,
-            (s, o) => s == o,
-        }
-    }
-}
-
-impl Eq for JokerIsWild {}
-
 #[derive(Debug, PartialEq, Eq)]
 struct Hand<T>(Vec<T>);
 
@@ -73,85 +56,89 @@ enum HandRanking {
     HighCard = 4,
 }
 
-fn regular_eqt(c: &Card) -> Box<Card> {
-    Box::new(c.clone())
+trait Rankable<T> {
+    fn rank(&self) -> HandRanking;
+    fn cards(&self) -> &Vec<T>;
 }
 
-fn joker_eqt(c: &JokerCard) -> Box<JokerIsWild> {
-    Box::new(JokerIsWild(c.clone()))
-}
+impl Rankable<Card> for Hand<Card> {
+    fn rank(&self) -> HandRanking {
+        use HandRanking::*;
+        let Hand(hand) = self;
+        let counts: HashMap<_, usize> = hand.iter().counts();
 
-fn my_counts<T: Hash + Eq + Clone + Copy, EqT: Eq>(
-    items: &Vec<T>,
-    eq_comparer: fn(&T) -> Box<EqT>,
-    ignore: Option<T>,
-) -> HashMap<&T, usize> {
-    let mut counts = HashMap::new();
-    for item in HashSet::<&T>::from_iter(items) {
-        let item_eqt = eq_comparer(item);
-        let count = items.into_iter().filter(|&i| eq_comparer(i) == item_eqt).count();
+        let mut freq: Vec<usize> = counts.into_values().collect();
+        freq.sort();
 
-        counts.entry(item).or_insert(count);
-        if let Some(ignore) = ignore {
-            if ignore == *item {
-                counts.entry(item).and_modify(|e| {
-                    *e = 0;
-                });
-            }
+        let mut freq_iter = freq.into_iter().rev();
+        match (freq_iter.next(), freq_iter.next()) {
+            (Some(5), _) => FiveOfAKind,
+            (Some(4), _) => FourOfAKind,
+            (Some(3), Some(2)) => FullHouse,
+            (Some(3), _) => ThreeOfAKind,
+            (Some(2), Some(2)) => TwoPair,
+            (Some(2), _) => OnePair,
+            _ => HighCard,
         }
     }
-    counts
-}
 
-fn rank<T: Hash + Eq + std::fmt::Debug + Clone + Copy, EqT: Eq + std::fmt::Debug + Copy>(
-    Hand(hand): &Hand<T>,
-    eq_comparer: fn(&T) -> Box<EqT>,
-    ignore: &Option<T>,
-) -> HandRanking {
-    use HandRanking::*;
-    let counts: HashMap<_, usize> = my_counts(hand, eq_comparer, *ignore);
-    dbg!(&counts);
-
-    let mut freq: Vec<usize> = counts.into_values().collect();
-    freq.sort();
-
-    let mut freq_iter = freq.into_iter().rev();
-    match (freq_iter.next(), freq_iter.next()) {
-        (Some(5), _) => FiveOfAKind,
-        (Some(4), _) => FourOfAKind,
-        (Some(3), Some(x)) if x >= 2 => FullHouse,
-        (Some(3), _) => ThreeOfAKind,
-        (Some(2), Some(2)) => TwoPair,
-        (Some(2), _) => OnePair,
-        _ => HighCard,
+    fn cards(&self) -> &Vec<Card> {
+        let Hand(cards) = self;
+        cards
     }
 }
 
-fn regular_tie_breaker(a: &Card, b: &Card) -> Ordering {
-    a.cmp(&b)
+impl Rankable<JokerCard> for Hand<JokerCard> {
+    fn rank(&self) -> HandRanking {
+        use HandRanking::*;
+        let Hand(hand) = self;
+        let mut counts: HashMap<_, usize> = hand.iter().counts();
+
+        let jacks = *counts.get(&JokerCard::JokerJack).unwrap_or(&0usize);
+        counts.remove_entry(&JokerCard::JokerJack);
+
+        let mut freq: Vec<&usize> = counts.values().collect();
+        freq.sort();
+
+        let mut freq_iter = freq.into_iter().rev();
+        match (freq_iter.next(), freq_iter.next(), jacks) {
+            (Some(x), _, j) if x + j == 5 => FiveOfAKind,
+            (None, _, 5) => FiveOfAKind,
+            (Some(x), _, j) if x + j == 4 => FourOfAKind,
+            (None, _, 4) => FourOfAKind,
+            (Some(3), Some(2), 0) => FullHouse,
+            (Some(2), Some(2), 1) => FullHouse,
+            (Some(3), Some(1), 1) => FullHouse,
+            (Some(2), Some(1), 2) => FullHouse,
+            (Some(1), Some(1), 3) => FullHouse,
+            (Some(x), _, j) if x + j == 3 => ThreeOfAKind,
+            (Some(2), Some(2), 0) => TwoPair,
+            (Some(2), Some(1), 1) => TwoPair,
+            (Some(1), Some(1), 2) => TwoPair,
+            (Some(x), _, j) if x + j == 2 => OnePair,
+            _ => HighCard,
+        }
+    }
+
+    fn cards(&self) -> &Vec<JokerCard> {
+        let Hand(cards) = self;
+        cards
+    }
 }
 
-fn joker_tie_breaker(a: &JokerCard, b: &JokerCard) -> Ordering {
-    a.cmp(&b)
-}
-
-fn order_hands<T: std::fmt::Debug + Eq + Hash + Clone + Copy, EqT: Eq + std::fmt::Debug + Copy>(
-    this: &Hand<T>,
-    other: &Hand<T>,
-    tie_breaker: fn(&T, &T) -> Ordering,
-    card_eqt: fn(&T) -> Box<EqT>,
-    ignore: &Option<T>,
+fn order_hands<HandT: Rankable<T>, T: std::fmt::Debug + Eq + Hash + Ord>(
+    this: &HandT,
+    other: &HandT,
 ) -> Ordering {
-    let self_rank = rank(this, card_eqt, ignore);
-    let other_rank = rank(other, card_eqt, ignore);
+    let self_rank = this.rank();
+    let other_rank = other.rank();
     match self_rank.cmp(&other_rank) {
         Ordering::Equal => {
-            let Hand(self_cards) = this;
-            let Hand(other_cards) = other;
+            let self_cards = this.cards();
+            let other_cards = other.cards();
             let first_diff = std::iter::zip(self_cards, other_cards)
-                .map(|(a, b)| tie_breaker(a, b))
-                .skip_while(|&o| o == Ordering::Equal)
-                .next();
+                .map(|(a, b)| a.cmp(b))
+                .find(|&o| o != Ordering::Equal);
             first_diff.unwrap_or(Ordering::Equal)
         }
         less_or_greater => less_or_greater,
@@ -187,8 +174,8 @@ fn convert_to_joker_card(c: &Card) -> JokerCard {
 fn convert_to_joker(input: &Input) -> JokerInput {
     let Input(Hand(cards), bid) = input;
 
-    let joker_cards: Vec<_> = cards.into_iter().map(convert_to_joker_card).collect();
-    JokerInput(Hand(joker_cards), bid.clone())
+    let joker_cards: Vec<_> = cards.iter().map(convert_to_joker_card).collect();
+    JokerInput(Hand(joker_cards), *bid)
 }
 
 fn parse_card(c: char) -> Option<Card> {
@@ -213,9 +200,9 @@ fn parse_card(c: char) -> Option<Card> {
 #[derive(Debug)]
 enum ParseError {
     InvalidCard(char),
-    InvalidHandLength,
-    InvalidBid(ParseIntError),
-    InvalidStruct,
+    HandLengthInvalid(usize),
+    BidInvalid(ParseIntError),
+    StructuralProblem,
 }
 
 fn parse(lines: &str) -> Result<Vec<Input>, ParseError> {
@@ -225,7 +212,7 @@ fn parse(lines: &str) -> Result<Vec<Input>, ParseError> {
 impl std::str::FromStr for Input {
     type Err = ParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (hand_str, bid_str) = s.split_once(' ').ok_or(ParseError::InvalidStruct)?;
+        let (hand_str, bid_str) = s.split_once(' ').ok_or(ParseError::StructuralProblem)?;
 
         let hand = hand_str
             .chars()
@@ -234,10 +221,10 @@ impl std::str::FromStr for Input {
 
         let bid = bid_str
             .parse::<u32>()
-            .map_err(|pie| ParseError::InvalidBid(pie))?;
+            .map_err(ParseError::BidInvalid)?;
 
         if hand_str.len() != 5 {
-            return Err(ParseError::InvalidHandLength);
+            return Err(ParseError::HandLengthInvalid(hand_str.len()));
         }
 
         Ok(Input(Hand(hand), bid))
@@ -248,7 +235,7 @@ pub fn part_one(input: &str) -> Option<u32> {
     let mut inputs = parse(input).expect("parsable input");
 
     inputs.sort_by(|Input(a_hand, _), Input(b_hand, _)| {
-        order_hands(&a_hand, &b_hand, regular_tie_breaker, regular_eqt, &None)
+        order_hands(a_hand, b_hand)
     });
 
     Some(
@@ -265,13 +252,7 @@ pub fn part_two(input: &str) -> Option<u32> {
     let mut inputs: Vec<_> = normal_inputs.iter().map(convert_to_joker).collect();
 
     inputs.sort_by(|JokerInput(a_hand, _), JokerInput(b_hand, _)| {
-        order_hands::<JokerCard, JokerIsWild>(
-            &a_hand,
-            &b_hand,
-            joker_tie_breaker,
-            joker_eqt,
-            &Some(JokerCard::JokerJack),
-        )
+        order_hands(a_hand, b_hand)
     });
 
     Some(
@@ -314,94 +295,33 @@ mod tests {
     fn test_joker_rank() {
         use JokerCard::*;
         assert_eq!(
-            rank(
-                &Hand(vec!(JokerJack, Ace, Ace, Ace, Ace)),
-                joker_eqt,
-                &Some(JokerJack)
-            ),
+            Hand(vec!(JokerJack, Ace, Ace, Ace, Ace)).rank(),
             FiveOfAKind
         );
         assert_eq!(
-            rank(
-                &Hand(vec!(Two, Ace, JokerJack, Ace, Ace)),
-                joker_eqt,
-                &Some(JokerJack)
-            ),
+            Hand(vec!(Two, Ace, JokerJack, Ace, Ace)).rank(),
             FourOfAKind
         );
+        assert_eq!(Hand(vec!(Two, Ace, JokerJack, Two, Ace)).rank(), FullHouse);
         assert_eq!(
-            rank(
-                &Hand(vec!(Two, Ace, JokerJack, Two, Ace)),
-                joker_eqt,
-                &Some(JokerJack)
-            ),
-            FullHouse
-        );
-        assert_eq!(
-            rank(
-                &Hand(vec!(Two, JokerJack, Ace, Three, Ace)),
-                joker_eqt,
-                &Some(JokerJack)
-            ),
+            Hand(vec!(Two, JokerJack, Ace, Three, Ace)).rank(),
             ThreeOfAKind
         );
-        assert_eq!(
-            rank(
-                &Hand(vec!(Two, Ace, Two, Three, Ace)),
-                joker_eqt,
-                &Some(JokerJack)
-            ),
-            TwoPair
-        );
-        assert_eq!(
-            rank(
-                &Hand(vec!(Six, JokerJack, Two, Three, Ace)),
-                joker_eqt,
-                &Some(JokerJack)
-            ),
-            OnePair
-        );
-        assert_eq!(
-            rank(
-                &Hand(vec!(Six, Five, Two, Three, Ace)),
-                joker_eqt,
-                &Some(JokerJack)
-            ),
-            HighCard
-        );
+        assert_eq!(Hand(vec!(Two, Ace, Two, Three, Ace)).rank(), TwoPair);
+        assert_eq!(Hand(vec!(Six, JokerJack, Two, Three, Ace)).rank(), OnePair);
+        assert_eq!(Hand(vec!(Six, Five, Two, Three, Ace)).rank(), HighCard);
     }
 
     #[test]
     fn test_rank() {
         use Card::*;
-        assert_eq!(
-            rank(&Hand(vec!(Ace, Ace, Ace, Ace, Ace)), regular_eqt, &None),
-            FiveOfAKind
-        );
-        assert_eq!(
-            rank(&Hand(vec!(Two, Ace, Ace, Ace, Ace)), regular_eqt, &None),
-            FourOfAKind
-        );
-        assert_eq!(
-            rank(&Hand(vec!(Two, Ace, Ace, Two, Ace)), regular_eqt, &None),
-            FullHouse
-        );
-        assert_eq!(
-            rank(&Hand(vec!(Two, Ace, Ace, Three, Ace)), regular_eqt, &None),
-            ThreeOfAKind
-        );
-        assert_eq!(
-            rank(&Hand(vec!(Two, Ace, Two, Three, Ace)), regular_eqt, &None),
-            TwoPair
-        );
-        assert_eq!(
-            rank(&Hand(vec!(Six, Ace, Two, Three, Ace)), regular_eqt, &None),
-            OnePair
-        );
-        assert_eq!(
-            rank(&Hand(vec!(Six, Five, Two, Three, Ace)), regular_eqt, &None),
-            HighCard
-        );
+        assert_eq!(Hand(vec!(Ace, Ace, Ace, Ace, Ace)).rank(), FiveOfAKind);
+        assert_eq!(Hand(vec!(Two, Ace, Ace, Ace, Ace)).rank(), FourOfAKind);
+        assert_eq!(Hand(vec!(Two, Ace, Ace, Two, Ace)).rank(), FullHouse);
+        assert_eq!(Hand(vec!(Two, Ace, Ace, Three, Ace)).rank(), ThreeOfAKind);
+        assert_eq!(Hand(vec!(Two, Ace, Two, Three, Ace)).rank(), TwoPair);
+        assert_eq!(Hand(vec!(Six, Ace, Two, Three, Ace)).rank(), OnePair);
+        assert_eq!(Hand(vec!(Six, Five, Two, Three, Ace)).rank(), HighCard);
     }
 
     #[test]
@@ -411,9 +331,6 @@ mod tests {
             order_hands(
                 &Hand(vec![Ace, Ace, Ace, Ace, Two]),
                 &Hand(vec![Two, Ace, Ace, Ace, Ace]),
-                regular_tie_breaker,
-                regular_eqt,
-                &None
             ),
             Ordering::Greater
         );
@@ -421,9 +338,6 @@ mod tests {
             order_hands(
                 &Hand(vec![Two, Ace, Ace, Ace, Two]),
                 &Hand(vec![Ace, Ace, Ace, Ace, Two]),
-                regular_tie_breaker,
-                regular_eqt,
-                &None
             ),
             Ordering::Less
         );
@@ -431,9 +345,6 @@ mod tests {
             order_hands(
                 &Hand(vec![Ace, Ace, Ace, Ace, Two]),
                 &Hand(vec![Two, Ace, Two, Ace, Ace]),
-                regular_tie_breaker,
-                regular_eqt,
-                &None
             ),
             Ordering::Greater
         );
@@ -441,9 +352,6 @@ mod tests {
             order_hands(
                 &Hand(vec![Ace, Ten, King, Queen, Two]),
                 &Hand(vec![Ace, Ten, King, Queen, Two]),
-                regular_tie_breaker,
-                regular_eqt,
-                &None
             ),
             Ordering::Equal
         );
@@ -451,9 +359,6 @@ mod tests {
             order_hands(
                 &Hand(vec![Two, Ace, Ace, Ace, Ace]),
                 &Hand(vec![Three, Two, Two, Two, Two]),
-                regular_tie_breaker,
-                regular_eqt,
-                &None
             ),
             Ordering::Less
         );
