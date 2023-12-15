@@ -47,7 +47,7 @@ fn parse(input: &str) -> Result<Input, ParseError> {
 
     let blank = lines.next().ok_or(InvalidStructure)?;
 
-    if blank.len() != 0 {
+    if !blank.is_empty() {
         return Err(InvalidStructure);
     }
 
@@ -98,7 +98,26 @@ fn parse_node_id(s: &str) -> Result<NodeId, ParseError> {
 }
 
 pub fn part_one(input: &str) -> Option<u32> {
-    None
+    let input = parse(input).expect("should parse");
+
+    let mut current_node: &NodeId = &parse_node_id("AAA").unwrap();
+
+    let destination = parse_node_id("ZZZ").unwrap();
+
+    let mut count = 0u32;
+    for direction in input.directions.iter().cycle() {
+        if *current_node == destination {
+            break;
+        }
+        count += 1;
+        let node = input.graph.get(current_node).expect("to find next node");
+        current_node = match direction {
+            Direction::Left => &node.left,
+            Direction::Right => &node.right,
+        };
+    }
+
+    Some(count)
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
@@ -152,7 +171,7 @@ mod tests {
     #[test]
     fn test_part_one() {
         let result = part_one(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(6));
     }
 
     #[test]
