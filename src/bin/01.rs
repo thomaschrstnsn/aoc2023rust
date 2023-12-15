@@ -13,7 +13,7 @@ pub fn part_one(input: &str) -> Option<u32> {
         let c1 = digits.first();
         let c2 = digits.last();
 
-        if c1 == None {
+        if c1.is_none() {
             continue;
         }
 
@@ -64,7 +64,7 @@ pub fn part_two(input: &str) -> Option<u32> {
         let c1 = digits.first();
         let c2 = digits.last();
 
-        if c1 == None {
+        if c1.is_none() {
             continue;
         }
         let s = format!("{}{}", c1?, c2?);
