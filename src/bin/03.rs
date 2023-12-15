@@ -29,8 +29,7 @@ impl FromStr for Entities {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut entities: Vec<Entity> = Vec::new();
         let lines: Vec<&str> = s.split('\n').collect();
-        for y in 0..lines.len() {
-            let line = lines[y];
+        for (y, line) in lines.iter().enumerate() {
             let mut in_number = false;
             for x in 0..line.len() {
                 let c = line.chars().nth(x).unwrap();
@@ -46,7 +45,7 @@ impl FromStr for Entities {
                         })
                     }
                     (_, true) => {
-                        if in_number == false {
+                        if !in_number {
                             let number_str: String = line[x..]
                                 .chars()
                                 .take_while(|c| c.is_ascii_digit())
@@ -90,8 +89,8 @@ pub fn is_adjacent_to_one(
     }
 }
 
-pub fn is_adjacent_to_any(pn: &PartNumber, symbols: &Vec<&Coord>) -> bool {
-    symbols.iter().any(|&s| is_adjacent_to_one(&pn, s))
+pub fn is_adjacent_to_any(pn: &PartNumber, symbols: &[&Coord]) -> bool {
+    symbols.iter().any(|&s| is_adjacent_to_one(pn, s))
 }
 
 pub fn part_one(input: &str) -> Option<u32> {
@@ -99,7 +98,7 @@ pub fn part_one(input: &str) -> Option<u32> {
 
     let symbols: Vec<&Coord> = entities
         .iter()
-        .map(|e| {
+        .filter_map(|e| {
             if let Entity::Symbol {
                 position,
                 symbol: _,
@@ -110,20 +109,18 @@ pub fn part_one(input: &str) -> Option<u32> {
                 None
             }
         })
-        .flatten()
         .collect();
 
     Some(
         entities
             .iter()
-            .map(|e| {
+            .filter_map(|e| {
                 if let Entity::Part(partnumber) = e {
                     Some(partnumber)
                 } else {
                     None
                 }
             })
-            .flatten()
             .filter(|&pn| is_adjacent_to_any(pn, &symbols))
             .map(|e| e.number)
             .sum(),
@@ -135,7 +132,7 @@ pub fn part_two(input: &str) -> Option<u32> {
 
     let gears: Vec<&Coord> = entities
         .iter()
-        .map(|e| {
+        .filter_map(|e| {
             if let Entity::Symbol {
                 position,
                 symbol: '*',
@@ -146,28 +143,26 @@ pub fn part_two(input: &str) -> Option<u32> {
                 None
             }
         })
-        .flatten()
         .collect();
 
     let parts: Vec<&PartNumber> = entities
         .iter()
-        .map(|e| {
+        .filter_map(|e| {
             if let Entity::Part(part) = e {
                 Some(part)
             } else {
                 None
             }
         })
-        .flatten()
         .collect();
 
     Some(
         gears
             .iter()
-            .map(|&g| {
+            .filter_map(|&g| {
                 let closest: Vec<&&PartNumber> = parts
                     .iter()
-                    .filter(|&part| is_adjacent_to_one(&part, g))
+                    .filter(|&part| is_adjacent_to_one(part, g))
                     .collect();
                 if closest.len() == 2 {
                     Some(closest[0].number * closest[1].number)
@@ -175,7 +170,6 @@ pub fn part_two(input: &str) -> Option<u32> {
                     None
                 }
             })
-            .flatten()
             .sum(),
     )
 }
