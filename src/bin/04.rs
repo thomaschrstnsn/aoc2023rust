@@ -28,17 +28,17 @@ impl std::str::FromStr for Card {
         let card_num = card_num_str
             .trim()
             .parse::<u16>()
-            .map_err(|e| ParseError::NotInt(e))?;
+            .map_err(ParseError::NotInt)?;
 
         let (winners_strs, drawn_strs) =
             rest.split_once('|').ok_or(ParseError::InvalidStructure)?;
 
         let winners = u8s(winners_strs)
-            .map_err(|e| ParseError::NotInt(e))?
+            .map_err(ParseError::NotInt)?
             .into_iter()
             .collect();
         let drawn = u8s(drawn_strs)
-            .map_err(|e| ParseError::NotInt(e))?
+            .map_err(ParseError::NotInt)?
             .into_iter()
             .collect();
 
