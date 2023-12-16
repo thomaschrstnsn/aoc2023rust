@@ -8,14 +8,27 @@ enum Direction {
     Right,
 }
 
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
 struct NodeId(char, char, char);
+
+impl NodeId {
+    fn is_done(&self) -> bool {
+        let NodeId(_, _, c) = self;
+        *c == 'Z'
+    }
+
+    fn is_start(&self) -> bool {
+        let NodeId(_, _, c) = self;
+        *c == 'A'
+    }
+}
 
 #[derive(Debug, PartialEq)]
 struct Node {
     left: NodeId,
     right: NodeId,
 }
+
 
 #[derive(Debug)]
 struct Input {
@@ -120,8 +133,85 @@ pub fn part_one(input: &str) -> Option<u32> {
     Some(count)
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
-    None
+#[derive(Debug)]
+struct Recorder {
+    period: Option<usize>,
+}
+
+impl Recorder {
+    fn new() -> Recorder {
+        Recorder { period: None}
+    }
+
+    fn record(&mut self, count: usize) {
+        if self.period.is_none() {
+            self.period = Some(count);
+        }
+    }
+
+    fn is_done(&self) -> bool {
+        self.period.is_some()
+    }
+}
+
+pub fn lcm(nums: &[usize]) -> usize {
+    if nums.len() == 1 {
+        return nums[0];
+    }
+    let a = nums[0];
+    let b = lcm(&nums[1..]);
+    a * b / gcd_of_two_numbers(a, b)
+}
+
+fn gcd_of_two_numbers(a: usize, b: usize) -> usize {
+    if b == 0 {
+        return a;
+    }
+    gcd_of_two_numbers(b, a % b)
+}
+
+pub fn part_two(input: &str) -> Option<usize> {
+    let input = parse(input).expect("should parse");
+
+    let mut current_nodes: Vec<&NodeId> = input
+        .graph
+        .keys()
+        .filter(|n| n.is_start())
+        .collect();
+    current_nodes.sort();
+
+    let mut recordings : Vec<Recorder> = current_nodes.iter().map(|_| Recorder::new()).collect();
+
+    let goal = current_nodes.len();
+
+    for (count, direction) in input.directions.iter().cycle().enumerate() {
+        let num_done = recordings
+            .iter()
+            .filter(|n| n.is_done())
+            .count();
+
+        for (i, node) in current_nodes.iter().enumerate() {
+            if node.is_done() {
+                recordings[i].record(count);
+            }
+        }
+
+        if num_done == goal {
+            break;
+        }
+
+        for current_node in current_nodes.iter_mut() {
+            let node = input.graph.get(current_node).expect("to find next node");
+            *current_node = match direction {
+                Direction::Left => &node.left,
+                Direction::Right => &node.right,
+            };
+        }
+    }
+
+    let divisors : Vec<usize> = recordings.iter().filter_map(|r| r.period).collect();
+
+    Some(lcm(&divisors))
 }
 
 #[cfg(test)]
@@ -176,7 +266,9 @@ mod tests {
 
     #[test]
     fn test_part_two() {
-        let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        let result = part_two(&advent_of_code::template::read_file_part(
+            "examples", DAY, 2,
+        ));
+        assert_eq!(result, Some(6));
     }
 }
