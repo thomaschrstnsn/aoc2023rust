@@ -39,8 +39,29 @@ pub fn part_one(input: &str) -> Option<i64> {
     Some(inputs.iter().map(extrapolate_next_value).sum())
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
-    None
+fn extrapolate_first_value(i: &Input) -> i64 {
+    let mut sequences : Vec<Box<Vec<i64>>> = vec![Box::new(i.clone())];
+    let mut done = false;
+    while !done {
+        let current = sequences.last().expect("should have a last");
+        let next : Vec<i64> = current.iter().tuple_windows().map(|(x,y)| y - x).collect();
+
+        done = next.iter().all(|x| *x == 0);
+        sequences.push(Box::new(next));
+    }
+
+    let result = sequences.iter().rev().fold(0, |prev, sequence| {
+        let first = sequence.first().unwrap();
+        first - prev
+    });
+
+    result
+}
+
+pub fn part_two(input: &str) -> Option<i64> {
+    let inputs = parse(input).expect("it should parse");
+
+    Some(inputs.iter().map(extrapolate_first_value).sum())
 }
 
 #[cfg(test)]
@@ -56,7 +77,7 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(2));
     }
 
     #[test]
