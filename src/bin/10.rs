@@ -118,6 +118,25 @@ impl Input {
         .collect()
     }
 
+    fn connections_from(&self, c: Coord) -> HashSet<Coord> {
+        let mut visited: HashSet<Coord> = HashSet::new();
+        visited.insert(c);
+
+        let mut connections: HashSet<Coord> =
+            self.get_immediate_connections(c).into_iter().collect();
+        while !connections.is_empty() {
+            visited.extend(&connections);
+
+            let new_cons: HashSet<Coord> = connections
+                .iter()
+                .flat_map(|&c| self.get_immediate_connections(c))
+                .collect();
+            connections = new_cons.difference(&visited).cloned().collect();
+        }
+
+        visited
+    }
+
     fn furthest_connection_from(&self, c: Coord) -> usize {
         let mut visited: HashSet<Coord> = HashSet::new();
         visited.insert(c);
@@ -201,8 +220,51 @@ pub fn part_one(input: &str) -> Option<usize> {
     Some(input.furthest_connection_from(*start))
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
-    None
+pub fn part_two(input: &str) -> Option<usize> {
+    let input = parse(input).expect("should parse");
+
+    let binding = input.filter(|x| *x == Some(Point::Start));
+    let start = binding.first().expect("should have a start point");
+
+    let connections = input.connections_from(*start);
+
+    let min_x = connections
+        .iter()
+        .min_by_key(|(x, _)| x)
+        .expect("have a minimum")
+        .0;
+    let max_x = connections
+        .iter()
+        .max_by_key(|(x, _)| x)
+        .expect("have a maximum")
+        .0;
+    let min_y = connections
+        .iter()
+        .min_by_key(|(_, y)| y)
+        .expect("have a minimum")
+        .1;
+    let max_y = connections
+        .iter()
+        .max_by_key(|(_, y)| y)
+        .expect("have a maximum")
+        .1;
+
+    let mut inside_area = 0usize;
+    for y in min_y..max_y {
+        let mut inside = false;
+        for x in min_x..max_x {
+            let is_connected = connections.contains(&(x,y));
+            // let is_northsouth = input
+            todo!()
+            if connections.contains(&(x, y)) {
+                inside = !inside;
+            } else if inside {
+                inside_area += 1;
+            }
+        }
+    }
+
+    Some(inside_area)
 }
 
 #[cfg(test)]
@@ -216,9 +278,19 @@ mod tests {
     }
 
     #[test]
-    fn test_part_two() {
-        let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+    fn test_part_two_example_two() {
+        let result = part_two(&advent_of_code::template::read_file_part(
+            "examples", DAY, 2,
+        ));
+        assert_eq!(result, Some(4));
+    }
+
+    #[test]
+    fn test_part_two_example_three() {
+        let result = part_two(&advent_of_code::template::read_file_part(
+            "examples", DAY, 3,
+        ));
+        assert_eq!(result, Some(10));
     }
 
     #[test]
