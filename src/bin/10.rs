@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 
 use itertools::Itertools;
 
@@ -101,28 +101,30 @@ impl Input {
     fn get_immediate_connections(&self, (x, y): Coord) -> Vec<Coord> {
         use Direction::*;
         if let Some(Some(point)) = self.get_point((x, y)) {
-            let directions : HashSet<Direction> = match point {
+            let directions: HashSet<Direction> = match point {
                 Point::NS => vec![North, South],
                 Point::WE => vec![West, East],
-                Point::NW => vec![South, East],
+                Point::NW => vec![North, West],
                 Point::Start => vec![North, East, South, West],
-                Point::SW => vec![North, East],
-                Point::NE => vec![South, West],
-                Point::SE => vec![North, West],
-            }.into_iter().collect();
+                Point::SW => vec![South, West],
+                Point::NE => vec![North, East],
+                Point::SE => vec![South, East],
+            }
+            .into_iter()
+            .collect();
             vec![
-                ((0, 1isize), North),
-                ((0, -1isize), South),
-                ((1, 0), West),
-                ((-1isize, 0), East),
+                ((0, 1isize), South, North),
+                ((0, -1isize),North, South),
+                ((1, 0), West, East),
+                ((-1isize, 0), East, West),
             ]
             .into_iter()
-            .filter(|(_, d)| directions.contains(d))
-            .filter_map(|((dx, dy), direction)| {
+            .filter(|(_, _, d)| directions.contains(d))
+            .filter_map(|((dx, dy), d1, d2)| {
                 let next_coord = (x + dx, y + dy);
-                let point = self.get_point(next_coord)?;
-                if let Some(point) = point {
-                    if point.is_connected_to(&direction) {
+                let next_point = self.get_point(next_coord)?;
+                if let Some(next_point) = next_point {
+                    if next_point.is_connected_to(&d1) && point.is_connected_to(&d2) {
                         return Some(next_coord);
                     }
                 }
@@ -151,6 +153,39 @@ impl Input {
         }
 
         visited
+    }
+
+    fn counter_clockwise_connections_from(&self, c: Coord) -> Vec<Coord> {
+        let mut visited: HashSet<Coord> = HashSet::new();
+        visited.insert(c);
+
+        let mut result: Vec<_> = Vec::new();
+        result.push(c);
+
+        let mut connections: HashSet<Coord> = self
+            .get_immediate_connections(c)
+            .into_iter()
+            .filter(|(x, y)| c.0 >= *x && c.1 <= *y)
+            .collect();
+        while !connections.is_empty() {
+            visited.extend(&connections);
+
+            assert_eq!(connections.len(), 1);
+            let c = connections.iter().next().unwrap();
+            if let Some(Some(point)) = self.get_point(*c) {
+                if !matches!(point, Point::NS | Point::WE) {
+                    result.push(c.clone());
+                }
+            }
+
+            let new_cons: HashSet<Coord> = connections
+                .iter()
+                .flat_map(|&c| self.get_immediate_connections(c))
+                .collect();
+            connections = new_cons.difference(&visited).cloned().collect();
+        }
+
+        result
     }
 
     fn furthest_connection_from(&self, c: Coord) -> usize {
@@ -200,7 +235,12 @@ impl Input {
             .join("\n")
     }
 
-    fn print_filtered_with_overlay(&self, filter_coords: &HashSet<Coord>, overlay: &HashSet<Coord>, oc: char) -> String {
+    fn print_filtered_with_overlay(
+        &self,
+        filter_coords: &HashSet<Coord>,
+        overlay: &HashSet<Coord>,
+        oc: char,
+    ) -> String {
         self.0
             .iter()
             .enumerate()
@@ -211,6 +251,34 @@ impl Input {
                         let c = (x as isize, y as isize);
                         if overlay.contains(&c) {
                             oc
+                        } else if filter_coords.contains(&c) {
+                            point_to_char(p)
+                        } else {
+                            '·'
+                        }
+                    })
+                    .collect::<String>()
+            })
+            .join("\n")
+    }
+
+    fn print_filtered_with_numbered_overlay(
+        &self,
+        filter_coords: &HashSet<Coord>,
+        overlay: &Vec<Coord>,
+    ) -> String {
+        let lookup : HashMap<&Coord, usize> = overlay.into_iter().enumerate().map(|(i,c)| (c,i)).collect();
+        self.0
+            .iter()
+            .enumerate()
+            .map(|(y, row)| {
+                row.iter()
+                    .enumerate()
+                    .map(|(x, p)| {
+                        let c = (x as isize, y as isize);
+                        if let Some(index) = lookup.get(&c) {
+                            format!("{}", index % 10).chars().next().unwrap()
+
                         } else if filter_coords.contains(&c) {
                             point_to_char(p)
                         } else {
@@ -300,7 +368,12 @@ pub fn part_one(input: &str) -> Option<usize> {
     Some(input.furthest_connection_from(*start))
 }
 
-pub fn part_two(input: &str) -> Option<usize> {
+pub fn shoelace(vertices: &Vec<Coord>) -> isize {
+    isize::abs(vertices.iter().circular_tuple_windows().map(|((x0,y0), (x1,y1))| x0 * y1 - (x1*y0)).sum::<isize>()) / 2
+
+}
+
+pub fn part_two(input: &str) -> Option<isize> {
     let input = parse(input).expect("should parse");
 
     println!("{}", input.print());
@@ -309,76 +382,12 @@ pub fn part_two(input: &str) -> Option<usize> {
     let start = binding.first().expect("should have a start point");
 
     let connections = input.connections_from(*start);
+    let vertices = input.counter_clockwise_connections_from(*start);
 
     println!("{}", input.print_filtered(&connections));
+    println!("{}", input.print_filtered_with_numbered_overlay(&connections, &vertices));
 
-    let min_x = connections
-        .iter()
-        .min_by_key(|(x, _)| x)
-        .expect("have a minimum")
-        .0;
-    let max_x = connections
-        .iter()
-        .max_by_key(|(x, _)| x)
-        .expect("have a maximum")
-        .0;
-    let min_y = connections
-        .iter()
-        .min_by_key(|(_, y)| y)
-        .expect("have a minimum")
-        .1;
-    let max_y = connections
-        .iter()
-        .max_by_key(|(_, y)| y)
-        .expect("have a maximum")
-        .1;
-
-    let mut horizontal_insiders: HashSet<Coord> = HashSet::new();
-    for y in min_y..max_y {
-        let mut inside = false;
-        for x in min_x..max_x {
-            let is_connected = connections.contains(&(x, y));
-            if is_connected {
-                if let Some(Some(point)) = input.get_point((x,y)) {
-                    if *point == Point::WE {
-                        inside = inside;
-                    } else if *point != Point::WE {
-                        inside = !inside;
-                    }
-                }
-            } else if inside {
-                horizontal_insiders.insert((x, y));
-            }
-        }
-    }
-    let mut vertical_insiders: HashSet<Coord> = HashSet::new();
-    for x in min_x..max_x {
-        let mut inside = false;
-        for y in min_y..max_y {
-            let is_connected = connections.contains(&(x, y));
-            if is_connected {
-                if let Some(Some(point)) = input.get_point((x,y)) {
-                    if *point == Point::NS {
-                        inside = inside;
-                    } else if *point != Point::NS {
-                        inside = !inside;
-                    }
-                }
-            } else if inside {
-                // dbg!((x,y));
-                vertical_insiders.insert((x, y));
-            }
-        }
-    }
-    // dbg!(&vertical_insiders);
-    // dbg!(&horizontal_insiders);
-    println!("HOR:\n{}", input.print_filtered_with_overlay(&connections, &horizontal_insiders, 'H'));
-    println!("VER:\n{}", input.print_filtered_with_overlay(&connections, &vertical_insiders, 'V'));
-
-    let inside_area = horizontal_insiders.intersection(&vertical_insiders).count();
-    // let inside_area = horizontal_insiders.len();
-
-    Some(inside_area)
+    Some(shoelace(&vertices) - (&connections.len()/2) as isize + 1)
 }
 
 #[cfg(test)]
@@ -427,5 +436,11 @@ mod tests {
             .collect();
 
         assert_eq!(result.get_row(0), Some(&expected_first));
+    }
+
+    #[test]
+    fn test_shoelace() {
+        let result = shoelace(&vec![(2,1), (5,0), (6,4), (4,2), (1,3)]);
+        assert_eq!(result, 8);
     }
 }
