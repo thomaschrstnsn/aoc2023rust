@@ -1,4 +1,4 @@
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools;
 
@@ -101,7 +101,7 @@ impl Input {
     fn get_immediate_connections(&self, (x, y): Coord) -> Vec<Coord> {
         use Direction::*;
         if let Some(Some(point)) = self.get_point((x, y)) {
-            let directions: HashSet<Direction> = match point {
+            let possible_directions: HashSet<Direction> = match point {
                 Point::NS => vec![North, South],
                 Point::WE => vec![West, East],
                 Point::NW => vec![North, West],
@@ -113,18 +113,18 @@ impl Input {
             .into_iter()
             .collect();
             vec![
-                ((0, 1isize), South, North),
-                ((0, -1isize),North, South),
+                ((0, 1isize), North, South),
+                ((0, -1isize), South, North),
                 ((1, 0), West, East),
                 ((-1isize, 0), East, West),
             ]
             .into_iter()
-            .filter(|(_, _, d)| directions.contains(d))
-            .filter_map(|((dx, dy), d1, d2)| {
+            .filter(|(_, _, d)| possible_directions.contains(d))
+            .filter_map(|((dx, dy), incoming_direction, _outgoing_direction)| {
                 let next_coord = (x + dx, y + dy);
                 let next_point = self.get_point(next_coord)?;
                 if let Some(next_point) = next_point {
-                    if next_point.is_connected_to(&d1) && point.is_connected_to(&d2) {
+                    if next_point.is_connected_to(&incoming_direction) {
                         return Some(next_coord);
                     }
                 }
@@ -159,22 +159,24 @@ impl Input {
         let mut visited: HashSet<Coord> = HashSet::new();
         visited.insert(c);
 
-        let mut result: Vec<_> = Vec::new();
-        result.push(c);
+        let mut result: Vec<_> = vec![c];
 
         let mut connections: HashSet<Coord> = self
             .get_immediate_connections(c)
             .into_iter()
-            .filter(|(x, y)| c.0 >= *x && c.1 <= *y)
+            .sorted()
+            .take(1)
             .collect();
+        // .filter(|(x, y)| (c.0 > *x && c.1 <= *y) || (c.0 >= *x && c.1 < *y))
+        // .collect();
         while !connections.is_empty() {
             visited.extend(&connections);
 
-            assert_eq!(connections.len(), 1);
+            assert_eq!(connections.len(), 1, "{:?}", connections);
             let c = connections.iter().next().unwrap();
             if let Some(Some(point)) = self.get_point(*c) {
                 if !matches!(point, Point::NS | Point::WE) {
-                    result.push(c.clone());
+                    result.push(*c);
                 }
             }
 
@@ -235,39 +237,13 @@ impl Input {
             .join("\n")
     }
 
-    fn print_filtered_with_overlay(
-        &self,
-        filter_coords: &HashSet<Coord>,
-        overlay: &HashSet<Coord>,
-        oc: char,
-    ) -> String {
-        self.0
-            .iter()
-            .enumerate()
-            .map(|(y, row)| {
-                row.iter()
-                    .enumerate()
-                    .map(|(x, p)| {
-                        let c = (x as isize, y as isize);
-                        if overlay.contains(&c) {
-                            oc
-                        } else if filter_coords.contains(&c) {
-                            point_to_char(p)
-                        } else {
-                            '·'
-                        }
-                    })
-                    .collect::<String>()
-            })
-            .join("\n")
-    }
-
     fn print_filtered_with_numbered_overlay(
         &self,
         filter_coords: &HashSet<Coord>,
-        overlay: &Vec<Coord>,
+        overlay: &[Coord],
     ) -> String {
-        let lookup : HashMap<&Coord, usize> = overlay.into_iter().enumerate().map(|(i,c)| (c,i)).collect();
+        let lookup: HashMap<&Coord, usize> =
+            overlay.iter().enumerate().map(|(i, c)| (c, i)).collect();
         self.0
             .iter()
             .enumerate()
@@ -278,7 +254,6 @@ impl Input {
                         let c = (x as isize, y as isize);
                         if let Some(index) = lookup.get(&c) {
                             format!("{}", index % 10).chars().next().unwrap()
-
                         } else if filter_coords.contains(&c) {
                             point_to_char(p)
                         } else {
@@ -368,15 +343,20 @@ pub fn part_one(input: &str) -> Option<usize> {
     Some(input.furthest_connection_from(*start))
 }
 
-pub fn shoelace(vertices: &Vec<Coord>) -> isize {
-    isize::abs(vertices.iter().circular_tuple_windows().map(|((x0,y0), (x1,y1))| x0 * y1 - (x1*y0)).sum::<isize>()) / 2
-
+pub fn shoelace(vertices: &[Coord]) -> isize {
+    isize::abs(
+        vertices
+            .iter()
+            .circular_tuple_windows()
+            .map(|((x0, y0), (x1, y1))| x0 * y1 - (x1 * y0))
+            .sum::<isize>(),
+    ) / 2
 }
 
 pub fn part_two(input: &str) -> Option<isize> {
     let input = parse(input).expect("should parse");
 
-    println!("{}", input.print());
+    println!("input:\n{}", input.print());
 
     let binding = input.filter(|x| *x == Some(Point::Start));
     let start = binding.first().expect("should have a start point");
@@ -384,10 +364,13 @@ pub fn part_two(input: &str) -> Option<isize> {
     let connections = input.connections_from(*start);
     let vertices = input.counter_clockwise_connections_from(*start);
 
-    println!("{}", input.print_filtered(&connections));
-    println!("{}", input.print_filtered_with_numbered_overlay(&connections, &vertices));
+    println!("loop:\n{}", input.print_filtered(&connections));
+    // println!(
+    //     "{}",
+    //     input.print_filtered_with_numbered_overlay(&connections, &vertices)
+    // );
 
-    Some(shoelace(&vertices) - (&connections.len()/2) as isize + 1)
+    Some(shoelace(&vertices) - (&connections.len() / 2) as isize + 1)
 }
 
 #[cfg(test)]
@@ -440,7 +423,7 @@ mod tests {
 
     #[test]
     fn test_shoelace() {
-        let result = shoelace(&vec![(2,1), (5,0), (6,4), (4,2), (1,3)]);
+        let result = shoelace(&vec![(2, 1), (5, 0), (6, 4), (4, 2), (1, 3)]);
         assert_eq!(result, 8);
     }
 }
