@@ -1,7 +1,5 @@
 use std::{collections::VecDeque, num::ParseIntError};
 
-use itertools::Itertools;
-
 advent_of_code::solution!(15);
 
 fn hash(input: &str) -> u32 {
@@ -35,21 +33,30 @@ impl<'a> Input<'a> {
 
 type Box<'a> = VecDeque<(Label<'a>, FocalLength)>;
 
+#[derive(Debug)]
 enum ParseError {
     InvalidInput(char),
+    NoSplit,
     InvalidInt(ParseIntError),
 }
 
-fn parse<'a>(s: &'a str) -> Result<Vec<Input<'a>>, ParseError> {
+fn parse(s: &str) -> Result<Vec<Input>, ParseError> {
     s.split(',')
         .map(|e| {
-            let label = &e[0..1];
-            match e.chars().nth(2).unwrap() {
-                '-' => Ok(Input::RemoveLens(&label)),
+            let split_index = e
+                .find(|c| c == '-' || c == '=')
+                .ok_or(ParseError::NoSplit)?;
+            let (label, rest) = e
+                .split_once(|c| c == '-' || c == '=')
+                .ok_or(ParseError::NoSplit)?;
+            match e.chars().nth(split_index).unwrap() {
+                '-' => Ok(Input::RemoveLens(label)),
                 '=' => {
-                    let int_str = &e[2..];
-                    let focal = int_str.parse::<usize>().map_err(ParseError::InvalidInt)?;
-                    Ok(Input::AddLens(&label, focal))
+                    let focal = rest
+                        .trim()
+                        .parse::<usize>()
+                        .map_err(ParseError::InvalidInt)?;
+                    Ok(Input::AddLens(label, focal))
                 }
                 invalid => Err(ParseError::InvalidInput(invalid)),
             }
@@ -58,12 +65,11 @@ fn parse<'a>(s: &'a str) -> Result<Vec<Input<'a>>, ParseError> {
 }
 
 pub fn part_two(input: &str) -> Option<usize> {
-    let inputs = parse(input).ok()?;
+    let inputs = parse(input).expect("should parse");
 
     let mut boxes: Vec<Box> = (0..256).map(|_| VecDeque::new()).collect();
 
     for input in inputs {
-        dbg!(&input);
         let label = input.label();
         let box_index = hash(label) as usize;
         let the_box = boxes.get_mut(box_index).expect("can find the box");
@@ -81,7 +87,7 @@ pub fn part_two(input: &str) -> Option<usize> {
                     the_box.push_back((label, focal));
                 }
             }
-        }
+        };
     }
 
     Some(
