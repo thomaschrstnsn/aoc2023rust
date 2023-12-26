@@ -10,13 +10,15 @@ fn parse(s: &str) -> Vec<Coord> {
     s.lines()
         .enumerate()
         .flat_map(|(y, line)| {
-            line.chars().enumerate().filter_map(move |(x, c)| {
-                if c == '#' {
-                    Some((x, y))
-                } else {
-                    None
-                }
-            })
+            line.chars().enumerate().filter_map(
+                move |(x, c)| {
+                    if c == '#' {
+                        Some((x, y))
+                    } else {
+                        None
+                    }
+                },
+            )
         })
         .collect()
 }
