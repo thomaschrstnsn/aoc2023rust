@@ -9,16 +9,15 @@ type Coord = (usize, usize);
 fn parse(s: &str) -> Vec<Coord> {
     s.lines()
         .enumerate()
-        .map(|(y, line)| {
+        .flat_map(|(y, line)| {
             line.chars().enumerate().filter_map(move |(x, c)| {
                 if c == '#' {
-                    Some((x.clone(), y.clone()))
+                    Some((x, y))
                 } else {
                     None
                 }
             })
         })
-        .flatten()
         .collect()
 }
 
@@ -35,11 +34,11 @@ fn find_expansion_lines(galaxies: &[Coord]) -> ExpansionLines {
         .expect("should have max x")
         .0;
 
-    let verticals_occupied: HashSet<usize> = galaxies.iter().map(|(x, _)| x.clone()).collect();
+    let verticals_occupied: HashSet<usize> = galaxies.iter().map(|(x, _)| *x).collect();
     let verticals_all: HashSet<usize> = (0usize..max_x).collect();
     let mut verticals_free: Vec<usize> = verticals_all
         .difference(&verticals_occupied)
-        .map(|&x| x.clone())
+        .copied()
         .collect();
     verticals_free.sort();
 
@@ -49,11 +48,11 @@ fn find_expansion_lines(galaxies: &[Coord]) -> ExpansionLines {
         .expect("should have max y")
         .1;
 
-    let horizontals_occupied: HashSet<usize> = galaxies.iter().map(|(_, y)| y.clone()).collect();
+    let horizontals_occupied: HashSet<usize> = galaxies.iter().map(|(_, y)| *y).collect();
     let horizontals_all: HashSet<usize> = (0usize..max_y).collect();
     let mut horizontals_free: Vec<usize> = horizontals_all
         .difference(&horizontals_occupied)
-        .map(|&y| y.clone())
+        .copied()
         .collect();
     horizontals_free.sort();
 
@@ -63,7 +62,11 @@ fn find_expansion_lines(galaxies: &[Coord]) -> ExpansionLines {
     }
 }
 
-fn expanded_universe(galaxies: &[Coord], expansion_lines: &ExpansionLines, expansion_factor: usize) -> Vec<Coord> {
+fn expanded_universe(
+    galaxies: &[Coord],
+    expansion_lines: &ExpansionLines,
+    expansion_factor: usize,
+) -> Vec<Coord> {
     galaxies
         .iter()
         .map(|&(x, y)| {
@@ -92,7 +95,11 @@ fn solve(input: &str, factor: usize) -> Option<usize> {
 
     let expanded_universe = expanded_universe(&galaxies, &expansions, factor);
 
-    let result = expanded_universe.iter().tuple_combinations().map(|(a,b)| manhattan_dist(a,b)).sum();
+    let result = expanded_universe
+        .iter()
+        .tuple_combinations()
+        .map(|(a, b)| manhattan_dist(a, b))
+        .sum();
 
     Some(result)
 }
@@ -106,7 +113,7 @@ fn manhattan_dist(a: &Coord, b: &Coord) -> usize {
 }
 
 pub fn part_two(input: &str) -> Option<usize> {
-    solve(input, 1_000_000usize)
+    solve(input, 999_999usize)
 }
 
 #[cfg(test)]
@@ -121,13 +128,19 @@ mod tests {
 
     #[test]
     fn test_part_two_10() {
-        let result = solve(&advent_of_code::template::read_file("examples", DAY), 10usize);
+        let result = solve(
+            &advent_of_code::template::read_file("examples", DAY),
+            9usize,
+        );
         assert_eq!(result, Some(1030));
     }
 
     #[test]
     fn test_part_two_100() {
-        let result = solve(&advent_of_code::template::read_file("examples", DAY), 100usize);
+        let result = solve(
+            &advent_of_code::template::read_file("examples", DAY),
+            99usize,
+        );
         assert_eq!(result, Some(8410));
     }
 
